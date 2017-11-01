@@ -2,11 +2,14 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include <stdbool.h> 
+#include <stdint.h>
 
 #define NAME_LENGTH_MIN 3
 #define NAME_LENGTH_MAX 10
 #define TELEPHONE_LENGTH 8
-#define DIRECTORY_LENGTH 1001
+#define DIRECTORY_LENGTH 10
+#define BUCKET_LENGTH DIRECTORY_LENGTH*2
 
 //**Structures**
 
@@ -22,6 +25,22 @@ struct directory {
   size_t capacity;
 };
 
+struct index_bucket {
+  const struct directory_data *data;
+  struct index_bucket *next;
+};
+
+
+typedef size_t (*index_hash_func_t)(const struct directory_data *data);
+
+
+struct index {
+  struct index_bucket **buckets;
+  size_t count;
+  size_t size;
+  index_hash_func_t func;
+};
+
 //***Prototypes**
 
 void directory_data_print(const struct directory_data *data);
@@ -32,6 +51,22 @@ void directory_data_random( struct directory_data *data);
 void directory_create(struct directory *self);
 void directory_add(struct directory *self, struct directory_data *data);
 void directory_random(struct directory *self, size_t n);
+void directory_search(const struct directory *self, const char *last_name);
+int directory_data_compare(const char *first, const char *second);
+void directory_sort(struct directory *self);
+void directory_quick_sort(struct directory *self, size_t i, size_t j);
+size_t directory_partition(struct directory *self, size_t i, size_t j);
+void directory_search_opt(const struct directory *self, const char *last_name);
+size_t fnv_hash(const char *key);
+void directory_search_dichotomique(const struct directory *self, const char *last_name, size_t min, size_t max);
+struct index_bucket *index_bucket_add(struct index_bucket *self, const struct directory_data *data);
+void index_bucket_destroy(struct index_bucket *self);
+size_t index_first_name_hash(const struct directory_data *data);
+size_t index_telephone_hash(const struct directory_data *data);
+void index_create(struct index *self, index_hash_func_t func);
+void index_rehash(struct index *self);
+void index_add(struct index *self, const struct directory_data *data);
+void index_fill_with_directory(struct index *self, const struct directory *dir);
 
 //****PARTIE 1****
 
@@ -130,15 +165,401 @@ void directory_random(struct directory *self, size_t n){
 }
 
 //****PARTIE 2****
-//****PARTIE 3****
-//****PARTIE 4****
 
-int main(){
-  struct directory dir;
-  directory_create(&dir);
-  directory_random(&dir, DIRECTORY_LENGTH);
-  directory_print(&dir, DIRECTORY_LENGTH);
+/*
+ *Fonction qui recherche un nom dans un tableau on trié et affiche les resultats.
+ */
+void directory_search(const struct directory *self, const char *last_name){
+  bool b =true;// passe à false si les last_name ne correspondent pas pour éviter l'affichage.
+  int k = 0;// si k = 0 à la fin de la fonction permet d'afficher que la fonction n'a rien trouvé.
   
-  directory_destroy(&dir);
+  printf("\n**RECHERCHE**\n");
+
+  for(size_t i = 0; i < self->size; ++i){
+    b = !directory_data_compare(self->data[i]->last_name, last_name);
+    
+    if(b){
+      ++k;
+      directory_data_print(self->data[i]);
+    }
+  }
+
+  if(!k){
+    printf("last_name non trouvé\n");
+  }
+  
+}
+
+/*
+ *Fonction swap.
+ */
+void directory_swap(struct directory *self, size_t i, size_t j){
+  struct directory_data *tmp;
+
+  tmp = self->data[i];
+  self->data[i] = self->data[j];
+  self->data[j] = tmp;
+}
+
+/*
+ *Fonction qui compare 2 chaines de caractere et renvoie -1 si la premiere se trouve avant dans l'alphabet, 1 si la premiere se trouve apres dans l'alphabet et zero si elle son egales.
+ */
+int directory_data_compare(const char *first, const char *second){
+  size_t j = 0;
+  while(!(first[j] == '\0' && second[j] == '\0')){
+    if(first[j] > second[j]){
+      return 1;
+    }
+    if(first[j] < second[j]){
+      return -1;
+    }
+        
+    ++j;
+  }
+
   return 0;
+}
+
+/*
+ *Fonction de partition utilisé dans quick sort.
+ */
+size_t directory_partition(struct directory *self, size_t i, size_t j){
+  const size_t pivot_index = (i + j) / 2;
+  const struct directory_data *pivot = self->data[pivot_index];
+  directory_swap(self, pivot_index, j);
+  size_t l = i;
+  for(size_t k = i; k < j; ++k){
+    if(directory_data_compare(self->data[k]->last_name, pivot->last_name) == -1){
+      directory_swap(self, k, l);
+      l++;
+    }
+  }
+  directory_swap(self, l, j);
+
+  return l;
+}
+/*
+ *Quick sort.
+ */
+void directory_quick_sort(struct directory *self, size_t i, size_t j){
+  if(i < j){
+    size_t p = directory_partition(self, i, j);
+    directory_quick_sort(self, i, p);
+    directory_quick_sort(self, p + 1, j);
+  }
+}
+
+/*
+ *Fonction qui trie notre repertoire par ordre alphabetique le last_name à l'aide d'un quick sort.
+ */
+void directory_sort(struct directory *self){
+  directory_quick_sort(self,0, self->size - 1);
+}
+
+/*
+ *Algorithm qui recherche une chaine de caractere dans un tableau trié (recherche dichotomique)
+ */
+void directory_search_opt(const struct directory *self, const char *last_name){
+  directory_search_dichotomique(self, last_name, 0, self->size);
+}
+void directory_search_dichotomique(const struct directory *self, const char *last_name, size_t min, size_t max){
+  if(min == max){
+    printf("Rien n'a été trouvé\n");
+    return;
+  }
+
+  size_t mid = (min + max)/2;
+
+  if(directory_data_compare(self->data[mid]->last_name, last_name) == 1){
+    directory_search_dichotomique(self, last_name, min, mid);
+    return;
+  }
+
+  if(directory_data_compare(self->data[mid]->last_name, last_name) == -1){
+    directory_search_dichotomique(self, last_name, mid + 1, max);
+    return;
+  }
+  
+  int j = 0;
+  
+  while(!directory_data_compare(self->data[mid - j]->last_name, self->data[mid]->last_name)){
+    directory_data_print(self->data[mid - j]);
+    ++j;
+  }
+  j = 1;
+  
+  while(!directory_data_compare(self->data[mid + j]->last_name, self->data[mid]->last_name)){
+    directory_data_print(self->data[mid + j]);
+    ++j;
+  }
+
+}
+
+//****PARTIE 3****
+
+/*
+ *Fonction qui ajoute un element dans une liste.
+ */
+struct index_bucket *index_bucket_add(struct index_bucket *self, const struct directory_data *data){
+  struct index_bucket *new = malloc(sizeof(struct index_bucket));
+  new->data = data;
+  new->next = self;
+  return new;
+}
+
+/*
+ *Fonction qui détruit une liste.
+ */
+void index_bucket_destroy(struct index_bucket *self){
+	if(!self){
+		//printf("\n AA");
+		return;
+	}
+	struct index_bucket *curr = self->next;
+  
+
+	while(curr){
+		self = curr->next;
+		free(curr);
+		curr = self;
+		//printf("ok");
+
+	}
+	free(self);
+}
+
+
+/*
+ *Fonction de hashage FNV-1a 64 bit.
+ */
+size_t fnv_hash(const char *key){
+  uint8_t byte_of_data = 0;
+  const uint64_t FNV_offset_basis = 0xcbf29ce484222325;
+  const uint64_t FNV_prime = 0x100000001b3;
+  size_t i = 0;
+  size_t hash = FNV_offset_basis;
+  while(key[i] != '\0'){
+    byte_of_data = key[i];
+    hash = hash ^ byte_of_data;
+    hash = hash * FNV_prime;
+    ++i;
+  }
+  return hash;
+}
+
+/*
+ *Fonction de hashage sur le prenom.
+ */
+size_t index_first_name_hash(const struct directory_data *data){
+  return fnv_hash(data->first_name);
+}
+
+/*
+ *Fonction de hashage sur le numero de telephone.
+ */
+size_t index_telephone_hash(const struct directory_data *data){
+  return fnv_hash(data->telephone);
+}
+
+/*! \brief Fonction qui crée un index vide et initialise la fonction de hashage.
+ *
+ *  Detailed description of the function
+ *
+ * \param *self Désigne l'index que l'on veut créer
+ * \param func Désigne la fonction de hashage
+ * \return 
+ */
+void index_create(struct index *self, index_hash_func_t func)
+{
+	self->count = 0;
+	self->size = BUCKET_LENGTH;
+	self->buckets = calloc(self->size, sizeof(struct index_bucket));
+	self->func = func;
+}
+
+/*! \brief Détruit un index
+ *
+ *  Détruit toute les listes chainées mais pas les entrées du répertoire.
+ *
+ * \param *self L'index que l'on veut détruire
+ * \return 
+ */
+void index_destroy(struct index *self)
+{
+	for (size_t i = 0; i < self->size; ++i) {
+		
+		//printf("%zu, ", i);
+		index_bucket_destroy(self->buckets[i]);
+	}
+	free(self->buckets);
+	
+}
+
+/*! \brief Effectue un reashe
+ *
+ *  Double la taille du tableau et recalcule tous les indices des éléments déja présents
+ *
+ * \param *self L'index que l'on veut reashe
+ * \return 
+ */
+void index_rehash(struct index *self)
+{
+	size_t index = 0;
+	self->size *= 2;
+	struct index_bucket **other = calloc(self->size, sizeof(struct index_bucket));
+	for (size_t i = 0; i < self->size/2; ++i) {
+		while(self->buckets[i]){
+			index = self->func(self->buckets[i]->data);
+			other[index % self->size] = index_bucket_add(other[index % self->size], self->buckets[i]->data);
+			self->buckets[i] = self->buckets[i]->next;
+		}
+	}
+	free(self->buckets);
+	self->buckets = other;
+
+}
+
+
+/*! \brief Ajoute une entrée dans l'index
+ *
+ *  Ajoute une entré dans l'index et effectue un reashe si le nombre d'element de la table dvisé par le nombre de case du tableau est superieur ou égale à 0.5.
+ *
+ * \param *self L'index où on veut ajouter un élément
+ * \param *data Element que l'on veut ajouter dans l'index
+ * \return 
+ */
+void index_add(struct index *self, const struct directory_data *data)
+{
+	size_t index = 0;
+	if (self->count / self->size >= 0.5) {
+		index_rehash(self);
+	}
+	index = self->func(data);
+	self->buckets[index % self->size] = index_bucket_add(self->buckets[index % self->size], data);
+	++self->count;
+}
+
+/*! \brief Remplit un index aves un répertoire
+ *
+ *  
+ *
+ * \param *self L'index que l'on veut remplire
+ * \param *dir Repertoire que l'on veut indexer
+ * \return 
+ */
+void index_fill_with_directory(struct index *self, const struct directory *dir)
+{
+	for (size_t i = 0; i < dir->size; ++i) {
+		index_add(self, dir->data[i]);
+	}
+}
+
+/*! \brief Cherche et affiche les entrées d'un index en fonction du prénom.
+ *
+ *  
+ *
+ * \param *self L'index où on veut effectuer la recherche
+ * \param *first_name Le prénom que recherché
+ * \return 
+ */
+void index_search_by_first_name(const struct index *self, const char *first_name)
+{
+	if (*self->func != &index_first_name_hash) {
+		printf("ERREURE : mauvais index");
+		return;
+	}
+
+	int b = 0;
+	printf("Le prénom recherché et %s : \n Personnes trouvé : \n", first_name);
+	size_t index_first_name = fnv_hash(first_name);
+	struct index_bucket *curr = self->buckets[index_first_name % self->size];
+
+	while(curr){
+		if(!directory_data_compare(self->buckets[index_first_name % self->size]->data->first_name, first_name)){
+			directory_data_print(self->buckets[index_first_name % self->size]->data);
+			++b;
+		}
+		curr = self->buckets[index_first_name % self->size]->next;
+	}
+	
+	if (!b) {
+		printf("Rien n'à été trouvé\n")	;
+	}
+}
+
+/*! \brief Cherche et affiche les entrées d'un index en fonction du numero de telephone.
+ *
+ *  
+ *
+ * \param *self L'index où on veut effectuer la recherche
+ * \param *telephone Le numero de telephone recherché
+ * \return 
+ */
+void index_search_by_telephone(const struct index *self, const char *telephone)
+{
+	if (*self->func != &index_telephone_hash) {
+		printf("ERREURE : mauvais index");
+		return;
+	}
+	
+	int b = 0;
+	printf("Le numero de telephone recherché et %s : \n Personnes trouvé : \n", telephone);
+	
+	size_t index_telephone = fnv_hash(telephone);
+	struct index_bucket *curr = self->buckets[index_telephone % self->size];
+
+	while(curr){
+		if(!directory_data_compare(self->buckets[index_telephone % self->size]->data->telephone, telephone)){
+			directory_data_print(self->buckets[index_telephone % self->size]->data);
+			++b;
+		}
+		curr = self->buckets[index_telephone % self->size]->next;
+	}
+
+	if (!b) {
+		printf("Rien n'à été trouvé\n")	;
+	}
+}
+
+//****PART 4****
+int main(){
+	struct directory dir;
+	struct index index_first_name;
+	struct index index_telephone;
+	directory_create(&dir);
+	index_create(&index_first_name, index_first_name_hash);
+	index_create(&index_telephone, index_telephone_hash);
+	
+	directory_random(&dir, DIRECTORY_LENGTH);
+
+	index_fill_with_directory(&index_first_name, &dir);
+	index_fill_with_directory(&index_telephone, &dir);
+	
+	directory_print(&dir, dir.size);
+	printf("****INDEX****\n");
+//	printf("\nFIRST_NAME\n");
+	/*for (size_t i = 0; i < index_first_name.size; ++i) {
+		while(index_first_name.buckets[i]){
+			directory_data_print(index_first_name.buckets[i]->data);
+			index_first_name.buckets[i] = index_first_name.buckets[i]->next;
+		}
+	}
+
+	printf("\nTELEPHONE\n");
+	for (size_t i = 0; i < index_telephone.size; ++i) {
+		while(index_telephone.buckets[i]){
+			directory_data_print(index_telephone.buckets[i]->data);
+			index_telephone.buckets[i] = index_telephone.buckets[i]->next;
+		}
+	}*/
+	
+	index_search_by_first_name(&index_first_name, "DOJ");
+	printf("\n\n");
+	index_search_by_telephone(&index_telephone, "26187920");
+
+	printf("\n\n");
+	index_destroy(&index_first_name);
+	index_destroy(&index_telephone);
+	directory_destroy(&dir);
+	return 0;
 }
