@@ -319,9 +319,9 @@ void index_bucket_destroy(struct index_bucket *self){
   
 
 	while(curr){
-		self = curr->next;
+		self->next = curr->next;
 		free(curr);
-		curr = self;
+		curr = self->next;
 		//printf("ok");
 
 	}
