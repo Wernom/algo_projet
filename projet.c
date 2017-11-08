@@ -10,6 +10,7 @@
 #define TELEPHONE_LENGTH 8
 #define DIRECTORY_LENGTH 10
 #define BUCKET_LENGTH DIRECTORY_LENGTH*2
+#define BUFSIZE sizeof(char)
 
 //**Structures**
 
@@ -76,7 +77,7 @@ void directory_data_print(const struct directory_data *data){
 }
 
 /*
- *Fonction qui affiche toute les informations d'un répertoire
+ *Fonction qui affiche toutes les informations d'un répertoire
  */
 void directory_print(struct directory *self, size_t n){
   for(int i = 0; i < n; ++i){
@@ -202,7 +203,7 @@ void directory_swap(struct directory *self, size_t i, size_t j){
 }
 
 /*
- *Fonction qui compare 2 chaines de caractere et renvoie -1 si la premiere se trouve avant dans l'alphabet, 1 si la premiere se trouve apres dans l'alphabet et zero si elle son egales.
+ *Fonction qui compare 2 chaines de caracteres et renvoie -1 si la premiere se trouve avant dans l'alphabet, 1 si la premiere se trouve apres dans l'alphabet et zero si elles sont egales.
  */
 int directory_data_compare(const char *first, const char *second){
   size_t j = 0;
@@ -250,7 +251,7 @@ void directory_quick_sort(struct directory *self, size_t i, size_t j){
 }
 
 /*
- *Fonction qui trie notre repertoire par ordre alphabetique le last_name à l'aide d'un quick sort.
+ *Fonction qui trie notre repertoire par ordre alphabetique par le last_name à l'aide d'un quick sort.
  */
 void directory_sort(struct directory *self){
   directory_quick_sort(self,0, self->size - 1);
@@ -312,7 +313,6 @@ struct index_bucket *index_bucket_add(struct index_bucket *self, const struct di
  */
 void index_bucket_destroy(struct index_bucket *self){
 	if(!self){
-		//printf("\n AA");
 		return;
 	}
 	struct index_bucket *curr = self->next;
@@ -322,7 +322,6 @@ void index_bucket_destroy(struct index_bucket *self){
 		self->next = curr->next;
 		free(curr);
 		curr = self->next;
-		//printf("ok");
 
 	}
 	free(self);
@@ -379,7 +378,7 @@ void index_create(struct index *self, index_hash_func_t func)
 
 /*! \brief Détruit un index
  *
- *  Détruit toute les listes chainées mais pas les entrées du répertoire.
+ *  Détruit toutes les listes chainées mais pas les entrées du répertoire.
  *
  * \param *self L'index que l'on veut détruire
  * \return 
@@ -387,8 +386,6 @@ void index_create(struct index *self, index_hash_func_t func)
 void index_destroy(struct index *self)
 {
 	for (size_t i = 0; i < self->size; ++i) {
-		
-		//printf("%zu, ", i);
 		index_bucket_destroy(self->buckets[i]);
 	}
 	free(self->buckets);
@@ -422,7 +419,7 @@ void index_rehash(struct index *self)
 
 /*! \brief Ajoute une entrée dans l'index
  *
- *  Ajoute une entré dans l'index et effectue un reashe si le nombre d'element de la table dvisé par le nombre de case du tableau est superieur ou égale à 0.5.
+ *  Ajoute une entrée dans l'index et effectue un reashe si le nombre d'element de la table dvisé par le nombre de case du tableau est superieur ou égale à 0.5.
  *
  * \param *self L'index où on veut ajouter un élément
  * \param *data Element que l'on veut ajouter dans l'index
@@ -465,12 +462,12 @@ void index_fill_with_directory(struct index *self, const struct directory *dir)
 void index_search_by_first_name(const struct index *self, const char *first_name)
 {
 	if (*self->func != &index_first_name_hash) {
-		printf("ERREURE : mauvais index");
+		printf("ERREUR : mauvais index");
 		return;
 	}
 
 	int b = 0;
-	printf("Le prénom recherché et %s : \n Personnes trouvé : \n", first_name);
+	printf("Le prénom recherché est %s : \n Personne trouvée : \n", first_name);
 	size_t index_first_name = fnv_hash(first_name);
 	struct index_bucket *curr = self->buckets[index_first_name % self->size];
 
@@ -483,7 +480,7 @@ void index_search_by_first_name(const struct index *self, const char *first_name
 	}
 	
 	if (!b) {
-		printf("Rien n'à été trouvé\n")	;
+		printf("Rien n'a été trouvé\n")	;
 	}
 }
 
@@ -498,12 +495,12 @@ void index_search_by_first_name(const struct index *self, const char *first_name
 void index_search_by_telephone(const struct index *self, const char *telephone)
 {
 	if (*self->func != &index_telephone_hash) {
-		printf("ERREURE : mauvais index");
+		printf("ERREUR : mauvais index");
 		return;
 	}
 	
 	int b = 0;
-	printf("Le numero de telephone recherché et %s : \n Personnes trouvé : \n", telephone);
+	printf("Le numero de telephone recherché est %s : \n Personne trouvée : \n", telephone);
 	
 	size_t index_telephone = fnv_hash(telephone);
 	struct index_bucket *curr = self->buckets[index_telephone % self->size];
@@ -517,13 +514,46 @@ void index_search_by_telephone(const struct index *self, const char *telephone)
 	}
 
 	if (!b) {
-		printf("Rien n'à été trouvé\n")	;
+		printf("Rien n'a été trouvé\n")	;
 	}
 }
 
 //****PART 4****
+/*! \brief Nettoie le buffer
+ *
+ *  
+ *
+ * \return 
+ */
+void clean_buffer()
+{
+	char c;
+	while((c = getchar()) != '\n' ){}
+	
+}
+/*! \brief Supprime le caractere de fin de ligne final et le remplace par \0
+ *
+ *  
+ *
+ * \param *buf La chaine de caractere que l'on veut modifier
+ * \param size La taille de la chaine de caractere
+ * \return 
+ */
+void clean_newline(char *buf, size_t size)
+{
+	char *p = strchr(buf, '\n');
+	if(p){
+		printf("1");
+		*p = '\0';
+	}
+	
+}
+
+
+
+//***MAIN***
 int main(){
-	struct directory dir;
+	/*struct directory dir;
 	struct index index_first_name;
 	struct index index_telephone;
 	directory_create(&dir);
@@ -537,8 +567,8 @@ int main(){
 	
 	directory_print(&dir, dir.size);
 	printf("****INDEX****\n");
-//	printf("\nFIRST_NAME\n");
-	/*for (size_t i = 0; i < index_first_name.size; ++i) {
+	printf("\nFIRST_NAME\n");
+	for (size_t i = 0; i < index_first_name.size; ++i) {
 		while(index_first_name.buckets[i]){
 			directory_data_print(index_first_name.buckets[i]->data);
 			index_first_name.buckets[i] = index_first_name.buckets[i]->next;
@@ -551,7 +581,7 @@ int main(){
 			directory_data_print(index_telephone.buckets[i]->data);
 			index_telephone.buckets[i] = index_telephone.buckets[i]->next;
 		}
-	}*/
+	}
 	
 	index_search_by_first_name(&index_first_name, "DOJ");
 	printf("\n\n");
@@ -560,6 +590,20 @@ int main(){
 	printf("\n\n");
 	index_destroy(&index_first_name);
 	index_destroy(&index_telephone);
-	directory_destroy(&dir);
+	directory_destroy(&dir);*/
+	char chaine[5];
+	printf("taper un truc : \n>");
+	fgets(chaine, sizeof(chaine), stdin);
+	clean_newline(chaine, 5);
+	printf("\"%s\"", chaine);
+	//clean_buffer();
+
+	printf("taper un truc : \n>");
+	fgets(chaine, sizeof(chaine), stdin);
+	clean_newline(chaine, 5);
+	printf("\"%s\"", chaine);
+	clean_buffer();
+
+	
 	return 0;
 }
