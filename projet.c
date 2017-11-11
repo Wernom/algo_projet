@@ -428,12 +428,34 @@ void index_rehash(struct index *self)
 void index_add(struct index *self, const struct directory_data *data)
 {
 	size_t index = 0;
-	if (self->count / self->size >= 0.5) {
+	float count = (float)self->count;
+	float size = (float)self->size;
+	if ((count / size) >= 0.5000) {
 		index_rehash(self);
 	}
 	index = self->func(data);
 	self->buckets[index % self->size] = index_bucket_add(self->buckets[index % self->size], data);
 	++self->count;
+}
+
+/*! \brief Affiche un repertoire
+ *
+ *  
+ *
+ * \param self Le repertoire que l'on veut afficher
+ * \return 
+ */
+void index_print(struct index *self)
+{
+	for (size_t i = 0; i < self->size; ++i) {
+		struct index_bucket *curr = self->buckets[i];
+		printf("%zu >\n", i);
+		while(curr){
+			directory_data_print(curr->data);
+			curr = curr->next;
+		}
+		printf("NULL\n");
+	}
 }
 
 /*! \brief Remplit un index aves un répertoire
@@ -472,11 +494,11 @@ void index_search_by_first_name(const struct index *self, const char *first_name
 	struct index_bucket *curr = self->buckets[index_first_name % self->size];
 
 	while(curr){
-		if(!directory_data_compare(self->buckets[index_first_name % self->size]->data->first_name, first_name)){
-			directory_data_print(self->buckets[index_first_name % self->size]->data);
+		if(!directory_data_compare(curr->data->first_name, first_name)){
+			directory_data_print(curr->data);
 			++b;
 		}
-		curr = self->buckets[index_first_name % self->size]->next;
+		curr = curr->next;
 	}
 	
 	if (!b) {
@@ -506,16 +528,20 @@ void index_search_by_telephone(const struct index *self, const char *telephone)
 	struct index_bucket *curr = self->buckets[index_telephone % self->size];
 
 	while(curr){
-		if(!directory_data_compare(self->buckets[index_telephone % self->size]->data->telephone, telephone)){
-			directory_data_print(self->buckets[index_telephone % self->size]->data);
+		if(!directory_data_compare(curr->data->telephone, telephone)){
+			directory_data_print(curr->data);
 			++b;
 		}
-		curr = self->buckets[index_telephone % self->size]->next;
+		curr = curr->next;
 	}
 
 	if (!b) {
 		printf("Rien n'a été trouvé\n")	;
 	}
+}
+
+void test(struct index *self){
+	printf("%zu", self->count / self->size); //self->size / self->count >= 0.5;
 }
 
 //****PART 4****
@@ -553,7 +579,7 @@ void clean_newline(char *buf, size_t size)
 
 //***MAIN***
 int main(){
-	/*struct directory dir;
+	struct directory dir;
 	struct index index_first_name;
 	struct index index_telephone;
 	directory_create(&dir);
@@ -568,42 +594,51 @@ int main(){
 	directory_print(&dir, dir.size);
 	printf("****INDEX****\n");
 	printf("\nFIRST_NAME\n");
+	index_print(&index_first_name);
+	/*struct 	index_bucket *p = index_first_name.buckets[0];
 	for (size_t i = 0; i < index_first_name.size; ++i) {
-		while(index_first_name.buckets[i]){
-			directory_data_print(index_first_name.buckets[i]->data);
-			index_first_name.buckets[i] = index_first_name.buckets[i]->next;
+		while(p){
+			directory_data_print(p->data);
+			p = p->next;
 		}
-	}
+	}*/
 
 	printf("\nTELEPHONE\n");
-	for (size_t i = 0; i < index_telephone.size; ++i) {
+	index_print(&index_telephone);
+
+	/*for (size_t i = 0; i < index_telephone.size; ++i) {
 		while(index_telephone.buckets[i]){
 			directory_data_print(index_telephone.buckets[i]->data);
 			index_telephone.buckets[i] = index_telephone.buckets[i]->next;
 		}
-	}
+	}*/
 	
+	
+
 	index_search_by_first_name(&index_first_name, "DOJ");
 	printf("\n\n");
 	index_search_by_telephone(&index_telephone, "26187920");
 
+
 	printf("\n\n");
 	index_destroy(&index_first_name);
 	index_destroy(&index_telephone);
-	directory_destroy(&dir);*/
-	char chaine[5];
-	printf("taper un truc : \n>");
-	fgets(chaine, sizeof(chaine), stdin);
-	clean_newline(chaine, 5);
-	printf("\"%s\"", chaine);
-	//clean_buffer();
+	directory_destroy(&dir);
 
+	/*char chaine[5];
 	printf("taper un truc : \n>");
 	fgets(chaine, sizeof(chaine), stdin);
 	clean_newline(chaine, 5);
 	printf("\"%s\"", chaine);
 	clean_buffer();
 
-	
+	printf("taper un truc : \n>");
+	fgets(chaine, sizeof(chaine), stdin);
+	clean_newline(chaine, 5);
+	printf("\"%s\"", chaine);
+	clean_buffer();*/
+
+
+
 	return 0;
 }
