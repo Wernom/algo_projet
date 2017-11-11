@@ -9,7 +9,7 @@
 #define NAME_LENGTH_MAX 10
 #define TELEPHONE_LENGTH 8
 #define DIRECTORY_LENGTH 10
-#define BUCKET_LENGTH DIRECTORY_LENGTH*2
+#define BUCKET_LENGTH 2
 #define BUFSIZE sizeof(char)
 
 //**Structures**
@@ -405,11 +405,15 @@ void index_rehash(struct index *self)
 	self->size *= 2;
 	struct index_bucket **other = calloc(self->size, sizeof(struct index_bucket));
 	for (size_t i = 0; i < self->size/2; ++i) {
-		while(self->buckets[i]){
-			index = self->func(self->buckets[i]->data);
-			other[index % self->size] = index_bucket_add(other[index % self->size], self->buckets[i]->data);
-			self->buckets[i] = self->buckets[i]->next;
+		struct index_bucket *curr = self->buckets[i];
+		while(curr){
+			index = self->func(curr->data);
+			other[index % self->size] = index_bucket_add(other[index % self->size], curr->data);
+			curr = curr->next;
 		}
+	}
+	for (size_t i = 0; i < self->size/2; ++i) {
+		index_bucket_destroy(self->buckets[i]);
 	}
 	free(self->buckets);
 	self->buckets = other;
