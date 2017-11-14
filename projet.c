@@ -4,13 +4,13 @@
 #include <string.h>
 #include <stdbool.h> 
 #include <stdint.h>
+#include <sys/time.h>
 
 #define NAME_LENGTH_MIN 3
 #define NAME_LENGTH_MAX 10
 #define TELEPHONE_LENGTH 8
-#define DIRECTORY_LENGTH 10
 #define BUCKET_LENGTH 2
-#define BUFSIZE sizeof(char)
+#define BUFSIZE 2
 
 //**Structures**
 
@@ -68,6 +68,9 @@ void index_create(struct index *self, index_hash_func_t func);
 void index_rehash(struct index *self);
 void index_add(struct index *self, const struct directory_data *data);
 void index_fill_with_directory(struct index *self, const struct directory *dir);
+void menu_print();
+void clean_newline(char *buf, size_t size);
+void purge();
 
 //****PARTIE 1****
 
@@ -186,7 +189,7 @@ void directory_search(const struct directory *self, const char *last_name){
   }
 
   if(!k){
-    printf("last_name non trouvé\n");
+    printf("Nothing fund\n");
   }
   
 }
@@ -265,7 +268,7 @@ void directory_search_opt(const struct directory *self, const char *last_name){
 }
 void directory_search_dichotomique(const struct directory *self, const char *last_name, size_t min, size_t max){
   if(min == max){
-    printf("Rien n'a été trouvé\n");
+    printf("Nothing fund.\n");
     return;
   }
 
@@ -506,7 +509,7 @@ void index_search_by_first_name(const struct index *self, const char *first_name
 	}
 	
 	if (!b) {
-		printf("Rien n'a été trouvé\n")	;
+		printf("Nothing fund.\n")	;
 	}
 }
 
@@ -540,30 +543,25 @@ void index_search_by_telephone(const struct index *self, const char *telephone)
 	}
 
 	if (!b) {
-		printf("Rien n'a été trouvé\n")	;
+		printf("Nothing fund.\n")	;
 	}
 }
 
-void test(struct index *self){
-	printf("%zu", self->count / self->size); //self->size / self->count >= 0.5;
-}
-
 //****PART 4****
-/*! \brief Nettoie le buffer
+/*! \brief nettoie le buffer
  *
- *  
  *
  * \return 
  */
-void clean_buffer()
+void purge()
 {
-	char c;
-	while((c = getchar()) != '\n' ){}
-	
+	int a;
+	while((a = getchar()) != '\n'){}
 }
-/*! \brief Supprime le caractere de fin de ligne final et le remplace par \0
+
+/*! \brief Supprime le caractere de fin de ligne final et le remplace par \0 ou nettoie le buffer si l'utilisateur à taper trop de chose.
  *
- *  
+ *   
  *
  * \param *buf La chaine de caractere que l'on veut modifier
  * \param size La taille de la chaine de caractere
@@ -573,76 +571,146 @@ void clean_newline(char *buf, size_t size)
 {
 	char *p = strchr(buf, '\n');
 	if(p){
-		printf("1");
 		*p = '\0';
+	}else{
+		purge();
 	}
 	
 }
 
+/*! \brief Affiche le menu
+ *
+ * \return 
+ */
+void menu_print()
+{
+	printf("What do you want to do?\n");
+	printf("\t1: Search by last name (not optimised)\n");
+	printf("\t2: Search by last name (optimised)\n");
+	printf("\t3: Search by first name\n");
+	printf("\t4: Search by telephone\n");
+	printf("\tq: Quit\n");
+	printf("Your choise:\n");
+	printf(">");
+}
+
+
+
 
 
 //***MAIN***
-int main(){
+int main(int argc, char *argv[]){
+	if (argc < 2) {
+		printf("An argument is missing.\n");
+		return 1;		
+	}
+
 	struct directory dir;
 	struct index index_first_name;
 	struct index index_telephone;
+	struct timeval time_before, time_after;
+	char input[BUFSIZE];
+	char name[NAME_LENGTH_MAX];	
+	char phone[TELEPHONE_LENGTH];
+
 	directory_create(&dir);
 	index_create(&index_first_name, index_first_name_hash);
 	index_create(&index_telephone, index_telephone_hash);
-	
-	directory_random(&dir, DIRECTORY_LENGTH);
 
+
+
+	printf("Creating the directory randomly.");
+	gettimeofday(&time_before, NULL);
+	directory_random(&dir, atoi(argv[1]));
+	gettimeofday(&time_after, NULL);
+	printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
+
+	printf("Sorting the directory.");
+	gettimeofday(&time_before, NULL);
+	directory_sort(&dir);
+	gettimeofday(&time_after, NULL);
+	printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
+	
+	printf("Filling the index_first_name with the directory.");
+	gettimeofday(&time_before, NULL);
 	index_fill_with_directory(&index_first_name, &dir);
+	gettimeofday(&time_after, NULL);
+	printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
+
+	printf("Filling the index_telephone with the directory.");
+	gettimeofday(&time_before, NULL);
 	index_fill_with_directory(&index_telephone, &dir);
+	gettimeofday(&time_after, NULL);
+	printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
 	
-	directory_print(&dir, dir.size);
-	printf("****INDEX****\n");
-	printf("\nFIRST_NAME\n");
-	index_print(&index_first_name);
-	/*struct 	index_bucket *p = index_first_name.buckets[0];
-	for (size_t i = 0; i < index_first_name.size; ++i) {
-		while(p){
-			directory_data_print(p->data);
-			p = p->next;
-		}
-	}*/
-
-	printf("\nTELEPHONE\n");
-	index_print(&index_telephone);
-
-	/*for (size_t i = 0; i < index_telephone.size; ++i) {
-		while(index_telephone.buckets[i]){
-			directory_data_print(index_telephone.buckets[i]->data);
-			index_telephone.buckets[i] = index_telephone.buckets[i]->next;
-		}
-	}*/
-	
-	
-
-	index_search_by_first_name(&index_first_name, "DOJ");
 	printf("\n\n");
-	index_search_by_telephone(&index_telephone, "26187920");
+	
+	//index_print(&index_telephone);
 
-
-	printf("\n\n");
-	index_destroy(&index_first_name);
-	index_destroy(&index_telephone);
-	directory_destroy(&dir);
-
-	/*char chaine[5];
-	printf("taper un truc : \n>");
-	fgets(chaine, sizeof(chaine), stdin);
-	clean_newline(chaine, 5);
-	printf("\"%s\"", chaine);
-	clean_buffer();
-
-	printf("taper un truc : \n>");
-	fgets(chaine, sizeof(chaine), stdin);
-	clean_newline(chaine, 5);
-	printf("\"%s\"", chaine);
-	clean_buffer();*/
-
-
+	while(true){
+		menu_print();
+		fgets(input, BUFSIZE, stdin);
+		clean_newline(input, 0);
+		
+		switch (input[0]) {
+			case '1':
+				printf("Which last name are you shearching?\n>");
+				fgets(name, NAME_LENGTH_MAX + 1, stdin);
+				clean_newline(name, 0);
+				gettimeofday(&time_before, NULL);
+				directory_search(&dir, name);
+				gettimeofday(&time_after, NULL);
+				printf("Time searching.");
+				printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
+				printf("\nPush enter to continue\n");
+				purge();
+				break;
+			case '2':
+				printf("Which last name are you shearching?\n>");
+				fgets(name, NAME_LENGTH_MAX + 1, stdin);
+				clean_newline(name, 0);
+				gettimeofday(&time_before, NULL);
+				directory_search_opt(&dir, name);
+				gettimeofday(&time_after, NULL);
+				printf("Time searching.");
+				printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
+				printf("\nPush enter to continue\n");
+				purge();
+				break;
+			case '3':
+				printf("Which first name are you shearching?\n>");
+				fgets(name, NAME_LENGTH_MAX + 1, stdin);
+				clean_newline(name, 0);
+				gettimeofday(&time_before, NULL);
+				index_search_by_first_name(&index_first_name, name);
+				gettimeofday(&time_after, NULL);
+				printf("Time searching.");
+				printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
+				printf("\nPush enter to continue\n");
+				purge();
+				break;
+			case '4':
+				printf("Which phone number are you shearching?\n>");
+				fgets(phone, TELEPHONE_LENGTH + 1, stdin);
+				clean_newline(phone, 0);
+				gettimeofday(&time_before, NULL);
+				printf("%s\n", phone);
+				index_search_by_telephone(&index_telephone, phone);
+				gettimeofday(&time_after, NULL);
+				printf("Time searching.");
+				printf("(%ld us)\n", (time_after.tv_sec - time_before.tv_sec) * 1000000 + time_after.tv_usec - time_before.tv_usec);
+				printf("\nPush enter to continue\n");
+				purge();
+				break;
+			case 'q':
+				index_destroy(&index_first_name);
+				index_destroy(&index_telephone);
+				directory_destroy(&dir);
+				return 0;
+			default:
+				printf("ERROR : wrong input\n\n\n\n");
+		}
+	}
 
 	return 0;
 }
